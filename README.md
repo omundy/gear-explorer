@@ -4,6 +4,9 @@
 https://gear-explorer.vercel.app
 
 
+![](src/assets/img/screenshot.png)
+
+
 ## Notes
 
 To test this locally, change your “Authorization Callback Domain” in https://www.strava.com/settings/api to `developers.strava.com`
