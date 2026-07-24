@@ -1,0 +1,34 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import { readTokens } from '../lib/session';
+import gearIcon from '../assets/img/GearExplorer-Icon.png';
+
+const tokens = readTokens(Astro.cookies);
+if (tokens) {
+  return Astro.redirect('/dashboard');
+}
+
+const error = Astro.url.searchParams.get('error');
+---
+
+<Base title="Welcome">
+	<div class="row justify-content-center">
+		<div class="col-lg-7 text-center py-5">
+			<Image src={gearIcon} alt="" width={96} height={96} class="mb-3 rounded" />
+
+			<h1 class="display-5 fw-bold mb-3">Gear Explorer</h1>
+			<p class="lead text-muted mb-4">
+				View, filter, and sort every activity you've logged on Strava by date, type, and gear (bikes and shoes). Link directly to edit the activity or gear on Strava.
+			</p>
+
+			{error && (
+				<div class="alert alert-danger" role="alert">
+					Login failed: {error}
+				</div>
+			)}
+
+			<a href="/api/auth/login" class="btn btn-primary btn-lg">Connect with Strava</a>
+		</div>
+	</div>
+</Base>

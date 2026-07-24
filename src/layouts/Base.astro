@@ -1,0 +1,72 @@
+---
+import { Image } from 'astro:assets';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import UnitToggle from '../components/UnitToggle.svelte';
+import { readUnits } from '../lib/preferences';
+import { readTokens } from '../lib/session';
+import { getUsage } from '../lib/apiUsage';
+import gearIconLight from '../assets/img/GearExplorer-Icon-light.png';
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+const units = readUnits(Astro.cookies);
+const session = readTokens(Astro.cookies);
+const usage = session ? await getUsage(session.athleteId) : null;
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title} · Gear Explorer</title>
+	</head>
+	<body>
+		<nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+			<div class="container">
+				<a class="navbar-brand d-flex align-items-center gap-2" href="/">
+						<Image src={gearIconLight} alt="" width={28} height={28} class="rounded" />
+						Gear Explorer
+					</a>
+				<button
+					class="navbar-toggler"
+					type="button"
+					data-bs-toggle="collapse"
+					data-bs-target="#nav-content"
+					aria-controls="nav-content"
+					aria-expanded="false"
+					aria-label="Toggle navigation"
+				>
+					<span class="navbar-toggler-icon"></span>
+				</button>
+				<div class="collapse navbar-collapse" id="nav-content">
+					<ul class="navbar-nav ms-auto align-items-md-center gap-2 mt-3 mt-md-0">
+						{usage && (
+							<li class="nav-item">
+								<span class="navbar-text small">{usage.remaining}/{usage.limit} API calls left today</span>
+							</li>
+						)}
+						<li class="nav-item">
+							<UnitToggle client:load units={units} />
+						</li>
+						{session && (
+							<li class="nav-item">
+								<a class="nav-link" href="/api/auth/logout">Log out</a>
+							</li>
+						)}
+					</ul>
+				</div>
+			</div>
+		</nav>
+		<main class="container pb-5">
+			<slot />
+		</main>
+		<script>
+			import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+		</script>
+	</body>
+</html>

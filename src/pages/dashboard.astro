@@ -1,0 +1,50 @@
+---
+import Base from '../layouts/Base.astro';
+import GearDashboard from '../components/GearDashboard.svelte';
+import { getValidTokens } from '../lib/session';
+import { readActivityCache } from '../lib/activityCache';
+import { getUsage } from '../lib/apiUsage';
+import { readUnits } from '../lib/preferences';
+
+const tokens = await getValidTokens(Astro.cookies);
+if (!tokens) {
+  return Astro.redirect('/');
+}
+
+const units = readUnits(Astro.cookies);
+const usage = await getUsage(tokens.athleteId);
+// May be null (never synced yet, or the server's cache file is gone) -
+// that's fine now. GearDashboard falls back to IndexedDB client-side
+// instead of us redirecting straight to a sync here.
+const cache = await readActivityCache(tokens.athleteId);
+
+const error = Astro.url.searchParams.get('error');
+const synced = Astro.url.searchParams.get('synced');
+---
+
+<Base title="Dashboard">
+	<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+		<h1 class="h3 mb-0">Hi, {tokens.firstname}</h1>
+		<div class="small text-muted">Strava API calls today: {usage.used} / {usage.limit}</div>
+	</div>
+
+	{error === 'budget' && (
+		<div class="alert alert-warning" role="alert">
+			You've used all {usage.limit} Strava API calls allotted for today. Refresh is disabled
+			until the count resets tomorrow — your last-synced data is still shown below.
+		</div>
+	)}
+	{synced && (
+		<div class="alert alert-success" role="alert">
+			Synced {cache?.activities.length ?? 0} activities from Strava.
+		</div>
+	)}
+
+	<GearDashboard
+		client:load
+		athleteId={tokens.athleteId}
+		units={units}
+		initialSnapshot={cache}
+		usageRemaining={usage.remaining}
+	/>
+</Base>

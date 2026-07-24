@@ -1,0 +1,48 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getValidTokens } from '../../lib/session';
+import { readActivityCache } from '../../lib/activityCache';
+import { readUnits } from '../../lib/preferences';
+import { formatDistance } from '../../lib/units';
+import { stravaGearUrl } from '../../lib/stravaLinks';
+
+const tokens = await getValidTokens(Astro.cookies);
+if (!tokens) {
+  return Astro.redirect('/');
+}
+
+const { id } = Astro.params;
+if (!id) {
+  return Astro.redirect('/dashboard');
+}
+
+const units = readUnits(Astro.cookies);
+const cache = await readActivityCache(tokens.athleteId);
+const gear = cache?.gearDetails[id];
+---
+
+<Base title={gear?.name ?? 'Gear'}>
+	<p><a href="/dashboard" class="text-decoration-none">&larr; Dashboard</a></p>
+
+	{!gear && (
+		<div class="alert alert-warning" role="alert">
+			No synced Strava data for this gear yet. <a href="/api/strava/sync">Sync from Strava</a> to load it.
+		</div>
+	)}
+
+	{gear && (
+		<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+			<div>
+				<h1 class="h3 mb-1">{gear.name}</h1>
+				<p class="text-muted">
+					{[gear.brand_name, gear.model_name].filter(Boolean).join(' ') || 'No brand/model set on Strava'}
+					&middot; {formatDistance(gear.distance, units, 0)} total
+				</p>
+				{gear.description && <p>{gear.description}</p>}
+			</div>
+			<a class="btn btn-outline-primary btn-sm" href={stravaGearUrl(id)} target="_blank" rel="noreferrer">
+				Edit on Strava ↗
+			</a>
+		</div>
+	)}
+</Base>
