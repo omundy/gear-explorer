@@ -1,0 +1,53 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Privacy">
+	<div class="row justify-content-center">
+		<div class="col-lg-8">
+			<h1 class="h3 mb-4">Privacy</h1>
+
+			<p class="lead">
+				Gear Explorer doesn't have a database. Your Strava activity and gear data is stored only
+				in your own browser — nothing is saved on our servers.
+			</p>
+
+			<h2 class="h5 mt-4">What's stored, and where</h2>
+			<ul>
+				<li>
+					<strong>Your synced Strava data</strong> (bikes, shoes, activities) is saved only in
+					your browser, using a local database called <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API" target="_blank" rel="noreferrer">IndexedDB</a>.
+					It never leaves your device to be stored anywhere else. You can see it yourself — open
+					your browser's developer tools, go to <strong>Application → IndexedDB → gear-explorer → snapshots</strong>,
+					and you'll find exactly what this app has, in full.
+				</li>
+				<li>
+					<strong>Your Strava sign-in</strong> is kept in a browser cookie (marked
+					<code>httpOnly</code>, so page scripts can't read it) that's sent back to our server
+					with each request so it can make API calls to Strava on your behalf. It is not written
+					to a database or file — it only exists as that cookie in your browser.
+				</li>
+				<li>
+					<strong>A small daily counter</strong> of how many Strava API calls have been made is
+					kept on the server, purely to self-limit how often the app talks to Strava. It's just a
+					date and a number tied to your Strava athlete id — no activity or personal data.
+				</li>
+			</ul>
+
+			<h2 class="h5 mt-4">Third parties</h2>
+			<p>
+				The only third party involved is Strava itself, which this app talks to using the
+				permissions you grant during sign-in. There's no analytics, tracking, or advertising here.
+			</p>
+
+			<h2 class="h5 mt-4">Removing your data</h2>
+			<p>
+				<a href="/api/auth/logout">Logging out</a> clears your sign-in cookie, but your synced
+				data stays in your browser's IndexedDB until you clear it yourself — logging out on
+				purpose leaves it there so you don't lose it. To remove everything, clear this site's data
+				from your browser settings, or delete the <code>gear-explorer</code> database from
+				developer tools as described above.
+			</p>
+		</div>
+	</div>
+</Base>

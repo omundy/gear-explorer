@@ -4,8 +4,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import UnitToggle from '../components/UnitToggle.svelte';
 import { readUnits } from '../lib/preferences';
 import { readTokens } from '../lib/session';
-import { getUsage } from '../lib/apiUsage';
-import gearIconLight from '../assets/img/GearExplorer-Icon-light.png';
+import gearIconLight from '../assets/img/GearExplorer-Icon.png';
 
 interface Props {
   title: string;
@@ -13,7 +12,6 @@ interface Props {
 const { title } = Astro.props;
 const units = readUnits(Astro.cookies);
 const session = readTokens(Astro.cookies);
-const usage = session ? await getUsage(session.athleteId) : null;
 ---
 
 <html lang="en">
@@ -45,9 +43,9 @@ const usage = session ? await getUsage(session.athleteId) : null;
 				</button>
 				<div class="collapse navbar-collapse" id="nav-content">
 					<ul class="navbar-nav ms-auto align-items-md-center gap-2 mt-3 mt-md-0">
-						{usage && (
+						{session && (
 							<li class="nav-item">
-								<span class="navbar-text small">{usage.remaining}/{usage.limit} API calls left today</span>
+								<a class="nav-link" href="/dashboard">Dashboard</a>
 							</li>
 						)}
 						<li class="nav-item">
@@ -65,6 +63,11 @@ const usage = session ? await getUsage(session.athleteId) : null;
 		<main class="container pb-5">
 			<slot />
 		</main>
+		<footer class="border-top py-3 mb-4">
+			<div class="container text-center">
+				<a class="link-secondary small" href="/privacy">Privacy</a>
+			</div>
+		</footer>
 		<script>
 			import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 		</script>

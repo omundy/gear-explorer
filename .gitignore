@@ -17,11 +17,9 @@ pnpm-debug.log*
 .env
 .env.production
 
-# local component data (prototype JSON store, see src/lib/gearStore.ts)
-data/*.json
-
 # macOS-specific files
 .DS_Store
 
 # jetbrains setting folder
 .idea/
+.vercel

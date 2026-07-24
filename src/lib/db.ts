@@ -1,14 +1,10 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { ActivityCacheEntry } from './types';
 
-// Client-side (browser) mirror of the server's activity cache
-// (src/lib/activityCache.ts). The server-side JSON file is what
-// /api/strava/sync writes to and what pages read for their first
-// server-rendered paint, but it can disappear (server restart, ephemeral
-// deploy filesystem) without warning. IndexedDB is per-browser and
-// survives that, so GearDashboard.svelte prefers whichever of the two
-// copies is newer and falls back to this one if the server has nothing -
-// letting a returning user see their data instantly without re-syncing.
+// The only place a synced Strava snapshot is stored - there is no
+// server-side copy. /api/strava/sync returns the fresh data as JSON;
+// GearDashboard.svelte writes it here and reads it back on later visits,
+// so a returning user sees their data instantly without re-syncing.
 const DB_NAME = 'gear-explorer';
 const DB_VERSION = 1;
 const STORE_NAME = 'snapshots';

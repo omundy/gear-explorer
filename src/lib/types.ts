@@ -55,8 +55,9 @@ export interface StravaActivity {
   average_speed: number;
 }
 
-// A full local snapshot of one athlete's Strava data, fetched once via
-// /api/strava/sync and read from thereafter - see src/lib/activityCache.ts.
+// A full snapshot of one athlete's Strava data, returned by /api/strava/sync
+// and persisted client-side in IndexedDB (src/lib/db.ts) - there's no
+// server-side copy of this data at all.
 export interface ActivityCacheEntry {
   athlete: StravaAthlete;
   gearDetails: Record<string, StravaGearDetail>;

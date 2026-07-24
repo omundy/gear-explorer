@@ -6,11 +6,17 @@ const WEB_BASE = 'https://www.strava.com';
 /**
  * Strava's own page for a piece of gear - we don't support editing gear
  * locally (Strava's API has no write endpoint for it anyway), so every
- * "edit" affordance in this app is a link out to here instead. Strava's
- * gear ids are prefixed "b" (bikes) or "g" (shoes), but the web URL drops
- * that prefix, e.g. gear id "b3468265" -> strava.com/bikes/3468265.
+ * "edit" affordance in this app is a link out to here instead.
+ *
+ * Bikes have individual pages: gear id "b3468265" -> strava.com/bikes/3468265
+ * (the "b" prefix is dropped from the URL). Shoes don't get individual
+ * pages at all - every shoe is edited from the single shared
+ * strava.com/settings/gear screen, so that's what we link to regardless
+ * of which shoe it is.
  */
 export function stravaGearUrl(gearId: string): string {
-  const kind = gearId.startsWith('b') ? 'bikes' : 'shoes';
-  return `${WEB_BASE}/${kind}/${gearId.slice(1)}`;
+  if (gearId.startsWith('b')) {
+    return `${WEB_BASE}/bikes/${gearId.slice(1)}`;
+  }
+  return `${WEB_BASE}/settings/gear`;
 }

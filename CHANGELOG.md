@@ -3,6 +3,192 @@
 Log of changes made to this project, including the prompts that drove them.
 Newest entries first.
 
+## 2026-07-24 — Cookie-based usage tracking; ready for Vercel
+
+**Prompt:**
+
+> Let's move API usage to a cookie and set it up to host on Vercel
+
+**Changes:**
+
+- Rewrote `src/lib/apiUsage.ts`: the daily call budget now lives in a
+  cookie (`api_usage`, httpOnly, 1-day `maxAge`) instead of
+  `data/api-usage.json`. `getUsage`/`recordCalls` are synchronous now (no
+  more file I/O), take `cookies` instead of `athleteId`, and store one
+  record directly rather than a map keyed by athlete - a cookie is
+  already scoped to one browser, so the extra keying was pointless. This
+  also means the budget is now tracked per-browser rather than
+  per-account (documented as a known trade-off in `IDEA.md`).
+- Updated the two call sites (`sync.ts`, `dashboard.astro`) accordingly.
+- With this, **the app has zero filesystem dependency** - deleted the
+  now-empty `data/` directory and its `.gitignore` entry. Every previous
+  server-side store (component tracking, the activity cache, and now the
+  usage budget) has been migrated away over the last few turns; nothing
+  left uses `node:fs`.
+- Installed `@astrojs/vercel` (via `npx astro add vercel`) and swapped it
+  in for `@astrojs/node` in `astro.config.mjs`; uninstalled the old
+  adapter. `npm run build` now produces a Vercel-ready
+  `.vercel/output/` via the adapter.
+- Rewrote `IDEA.md`'s "Why Astro + Svelte" and "Known limitations"
+  sections around the no-filesystem architecture, and added a "Deploying
+  (Vercel)" section with the actual steps (push to Git / `vercel` CLI,
+  set `STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET` as env vars, update the
+  Strava app's callback domain to the deployed domain). Updated
+  `AGENTS.md` to match.
+- **Verified, not just built**: type-checked and built cleanly; ran the
+  dev server and confirmed over real HTTP that the usage cookie
+  round-trips correctly (a hand-set 37-count cookie shows "37 / 100", a
+  stale-dated cookie correctly resets to "0 / 100"); separately unit-
+  tested `getUsage`/`recordCalls` directly against a mock cookie jar to
+  confirm the write path accumulates correctly across multiple calls
+  (13 → 18 after a second `recordCalls(5)`) and round-trips through
+  reads, not just in-memory state.
+- **Noted, not silently fixed**: `npm uninstall @astrojs/node` surfaced 3
+  high-severity `npm audit` findings, all transitive
+  (`@astrojs/vercel` → `@vercel/routing-utils` → `path-to-regexp`, a ReDoS
+  advisory). The suggested `npm audit fix --force` would downgrade
+  `@astrojs/vercel` to an old major version (8.0.4) - didn't do that
+  unasked, since it's upstream Vercel tooling, not our code, and a forced
+  major downgrade is exactly the kind of thing to check before doing.
+
+## 2026-07-24 — Dashboard header layout, privacy page
+
+**Prompt:**
+
+> Move refresh button to same line as "Hi, Owen". Condense the two usage
+> reports into one, and place just below the refresh button.
+>
+> Add a privacy page and explain how no data is saved on the app, it's
+> only save locally inside IndexedDB, which the user can access
+> themselves.
+>
+> So what do I need to do to publish on Github Pages?
+
+**Changes:**
+
+- Moved the whole dashboard header into `GearDashboard.svelte` (it needed
+  to own it anyway, since the Refresh button and the live call count both
+  depend on state that lives there): "Hi, {firstname}" on the left, the
+  Refresh button top-right, and a single "Strava API calls today: X / Y"
+  line directly below the button. `dashboard.astro` no longer renders any
+  of its own header markup - it just passes `firstname` and `usageLimit`
+  down as props alongside what it already sent.
+- Removed the navbar's separate usage badge (`Base.astro`) - there were
+  two live counts previously (navbar + dashboard), now there's exactly
+  one, and it's the one that was already correct (the dashboard's, which
+  updates locally after each sync without a reload).
+- Added `src/pages/privacy.astro`: explains plainly that synced Strava
+  data lives only in the browser's IndexedDB (with the exact DevTools path
+  to go look at it), that the session cookie is httpOnly and never written
+  to a database, that the only server-side state is a daily call counter
+  (date + number, no activity data), and that logging out doesn't clear
+  IndexedDB (so no data loss) - deliberately accurate about what *does*
+  briefly touch the server (the cookie, the counter) rather than claiming
+  "nothing is saved" outright. Linked from a new small footer in
+  `Base.astro`, since an unlinked page would've been unreachable.
+- Verified with `npx astro check` (0 errors), `npm run build`, and a
+  real-browser pass (Playwright, pre-seeded IndexedDB): screenshotted the
+  dashboard to confirm the header layout matches what was asked, confirmed
+  the navbar no longer contains "API calls" text, and confirmed the
+  privacy page renders and mentions IndexedDB.
+
+## 2026-07-24 — Drop the server-side cache; sync writes straight to IndexedDB
+
+**Prompt:**
+
+> Change the link to /gear/* to just go straight to Strava page for he
+> gear.
+> Can't /api/strava/sync just store in indexeddb?
+
+**Changes:**
+
+- Deleted `src/pages/gear/[id].astro` entirely. It only ever existed to
+  show cached brand/model/distance plus an Edit-on-Strava link; now that
+  everything links straight to Strava, it had no remaining purpose.
+  Dashboard gear cards now link directly to `stravaGearUrl(gear.id)`
+  (`target="_blank"`) instead of an internal route.
+- Deleted `src/lib/activityCache.ts` and the server-side
+  `data/strava-cache.json` it wrote - there's no server-side copy of
+  activity data anymore, period.
+- `/api/strava/sync` is now `POST`, not `GET`+redirect: it still does the
+  same Strava fetching and still spends the daily call budget
+  (`apiUsage.ts`, unchanged), but returns `{ snapshot, callsUsed }` as
+  JSON instead of writing a file and redirecting.
+- `GearDashboard.svelte` now owns the whole client-side data lifecycle:
+  reads IndexedDB on mount; if empty and budget allows, calls
+  `/api/strava/sync` via `fetch` (no page navigation at all anymore),
+  writes the response straight into IndexedDB, and updates its own state.
+  The Refresh button runs the same function. Added an inline
+  `alert-danger` for sync failures (budget exhausted → 429, any other
+  failure → whatever status came back) since there's no more
+  `?error=budget` redirect to hang a banner off of. The remaining-calls
+  count now also decrements locally after each sync, so the Refresh
+  button disables itself correctly within a visit without needing a
+  reload.
+- `dashboard.astro` shrank accordingly - it now only handles the auth
+  gate and the page-load budget number; no more cache read, no more
+  query-param banners.
+- Rewrote the relevant sections of `IDEA.md` and `AGENTS.md` for the
+  simplified architecture, including a new "Known limitations" note: a
+  brand-new browser/private window/cleared storage now always has to sync
+  once (there's no server-side fallback anymore), which is a deliberate
+  trade for making the app realistically deployable on a serverless host
+  with no persistent filesystem.
+- **Verified in a real browser** (Playwright, installed earlier this
+  session): (1) pre-seeded IndexedDB → dashboard renders instantly with
+  zero requests to `/api/strava/sync`, bike/shoe card links resolve to the
+  correct `strava.com` URLs; (2) empty IndexedDB → sync auto-triggers via
+  `fetch`, and since the test session's token is fake, Strava genuinely
+  rejects it - confirmed this surfaces as a clean inline "Sync failed
+  (500)" message with no stuck overlay and no crash, rather than assuming
+  the error path was correct from reading the code. Also confirmed with
+  `npx astro check` (0 errors) and `npm run build`.
+- Along the way, found that Astro's built-in CSRF protection
+  (`security.checkOrigin`) rejects `POST /api/strava/sync` from anything
+  that doesn't send a matching `Origin` header (e.g. plain `curl`) with a
+  403 - expected and fine, since the only real caller is our own page's
+  `fetch()`, which always sends one.
+
+## 2026-07-24 — Nav link, stop auto-redirecting the homepage, shoe URL fix
+
+**Prompt:**
+
+> Great. I can see the data in indexeddb now.
+>
+> Add a link to the dashboard in the nav. I would like the homepage not
+> to redirect to dashboard automatically. If they are authenticating for
+> the first time then do that and redirect to dashboard. If they are
+> already connected with Strava and go to the home page show View
+> Dashboard in the button text and make it a link only.
+>
+> Looks like the edit page for all shoes is just
+> https://www.strava.com/settings/gear
+
+**Changes:**
+
+- `Base.astro`: added a "Dashboard" link to the navbar, shown whenever
+  there's a session (next to the existing budget display / unit toggle /
+  logout).
+- `index.astro`: removed the `if (tokens) return Astro.redirect('/dashboard')`
+  that unconditionally bounced logged-in visitors away from the homepage.
+  First-time OAuth still lands on `/dashboard` same as before (that
+  redirect lives in `api/auth/callback.ts`, untouched). Now, when already
+  connected, the CTA becomes a plain `<a href="/dashboard">View
+  Dashboard</a>` (no `btn` classes - "a link only" per the request)
+  instead of the `Connect with Strava` button.
+- `stravaLinks.ts`: fixed `stravaGearUrl()` - shoes don't have individual
+  Strava pages the way bikes do; every shoe edits from the single shared
+  `strava.com/settings/gear` screen, regardless of gear id. Bikes are
+  unaffected (`strava.com/bikes/{id-without-b}`, unchanged).
+- Verified with `npx astro check` (0 errors), `npm run build`, and a
+  manual run: confirmed the homepage returns 200 (not a redirect) for an
+  authenticated visitor and renders the plain "View Dashboard" link, the
+  navbar's "Dashboard" link appears when logged in, and - with a seeded
+  bike + shoe + ride + run - the bike's gear link still resolves to
+  `strava.com/bikes/3468265` while the shoe's resolves to
+  `strava.com/settings/gear`, both in the activity table and on the gear
+  detail page.
+
 ## 2026-07-24 — Fix: IndexedDB writes were silently failing
 
 **Prompt:**
