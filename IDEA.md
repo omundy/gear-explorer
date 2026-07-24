@@ -130,12 +130,20 @@ in cookies read/written per-request (session, daily call budget).
   resettable by clearing cookies or switching browsers, and it doesn't
   follow the same person across devices - both fine for a personal-use
   governor, not fine if this ever needed to be a real enforced limit.
-- **The usage timeline caps at 8 gear lines** (a validated categorical
-  palette's limit for staying colorblind-distinguishable - see
-  `src/lib/chartColors.ts`); anyone with more gear than that sees their top
-  8 by lifetime distance as named lines and everything else folded into a
-  single "Other gear" line, rather than a 9th generated hue. The chart is
-  light-mode only, matching the rest of the app (no dark mode anywhere yet).
+- **Every gear item gets its own line, with no cap** - past the palette's 8
+  colorblind-distinguishable hues, colors repeat and each repeat gets a new
+  line-dash pattern (solid → dashed → dotted → dash-dot) instead of a 9th
+  generated hue or folding into an "Other" bucket (see
+  `src/lib/chartColors.ts`). This means two gear items *can* share both a
+  color and, past 32 items, a color+dash combo - the legend and tooltip
+  (which name every series) are the reliable disambiguator at that point,
+  same as they already are for any two colors that are merely hard to tell
+  apart under color-vision deficiency. Gear cards' badges match a gear's
+  chart *color* only (no dash equivalent on a small pill badge), so two
+  cards can share a badge color once you're past 8 gear items - the name
+  next to the badge is what actually distinguishes them there. The chart
+  is light-mode only, matching the rest of the app (no dark mode anywhere
+  yet).
 
 ## Setup
 

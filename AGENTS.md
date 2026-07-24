@@ -126,11 +126,17 @@ client-side script to `.astro` files.
 
 **Charting**: `GearTimeline.svelte` (Chart.js) uses the validated categorical
 palette in `src/lib/chartColors.ts` — fixed hue order assigned by each
-gear's lifetime-distance rank, never re-assigned or cycled past 8 slots
-(extras fold into one "Other gear" line). If you add another chart, pull
-colors from that module rather than picking new hex values by eye; it was
-validated with the dataviz skill's colorblind-safety checker. Light-mode
-only, matching the rest of the app.
+gear's lifetime-distance rank, never re-assigned once picked. Every gear
+gets its own line; past the 8th, `categoricalColor()` cycles back through
+the same 8 hues and `categoricalDash()` gives that repeat a new
+`borderDash` pattern, so no two lines are ever both same-color-and-dash.
+This was a deliberate choice over the dataviz skill's usual "fold past 8
+into Other" advice — extending the palette itself isn't safe (validated:
+even the base 8 fail `validate_palette.js --pairs all`, so a 9th hue was
+never going to hold up), and flat reuse without the dash would be
+genuinely ambiguous. If you add another chart, pull from this module
+rather than picking new hex values by eye. Light-mode only, matching the
+rest of the app.
 
 **API routes** (`src/pages/api/**`) are the only things allowed to mutate
 server-side state (session cookie, usage counts) or call Strava. Svelte

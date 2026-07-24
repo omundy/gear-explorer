@@ -12,7 +12,7 @@
   import type { StravaActivity, StravaGearSummary } from "../lib/types";
   import type { Units } from "../lib/units";
   import { distanceValue, distanceUnitLabel } from "../lib/units";
-  import { categoricalColor, MAX_CATEGORICAL_SERIES, OTHER_COLOR } from "../lib/chartColors";
+  import { categoricalColor, categoricalDash, rankGearByDistance } from "../lib/chartColors";
 
   Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Legend, Tooltip);
 
@@ -51,6 +51,7 @@
   interface TimelineDataset {
     label: string;
     color: string;
+    dash: number[];
     data: number[];
   }
 
@@ -59,17 +60,14 @@
     if (withGear.length === 0 || gear.length === 0) return null;
 
     // Rank gear by total distance so the biggest story gets the earliest,
-    // most-distinct palette slots. Ranking is based on all-time distance
-    // (not the current granularity), so a gear's color/order never changes
-    // when toggling Year/Month.
-    const totalByGear = new Map<string, number>();
-    for (const a of withGear) {
-      totalByGear.set(a.gear_id!, (totalByGear.get(a.gear_id!) ?? 0) + a.distance);
-    }
-    const rankedGearIds = [...totalByGear.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+    // most-distinct palette slots, and so a gear's color/order never changes
+    // when toggling Year/Month. Same ranking the gear cards use
+    // (GearDashboard.svelte), so a gear's color matches everywhere it's shown.
+    // Every gear gets its own line - past 8, colors repeat but each repeat
+    // gets a new dash pattern (categoricalDash), so no two lines are ever
+    // ambiguous even though hues run out.
+    const rankedGearIds = rankGearByDistance(activities);
     const gearNameById = new Map(gear.map((x) => [x.id, x.name]));
-    const shownIds = rankedGearIds.slice(0, MAX_CATEGORICAL_SERIES);
-    const hasOther = rankedGearIds.length > MAX_CATEGORICAL_SERIES;
 
     // A continuous period range (gaps filled with 0) so a line visibly
     // falls to zero across an unused stretch instead of skipping over it.
@@ -82,27 +80,20 @@
       if (k === last) break;
     }
 
-    const sums = new Map<string, Map<string, number>>(); // gearId | 'other' -> period -> meters
+    const sums = new Map<string, Map<string, number>>(); // gearId -> period -> meters
     for (const a of withGear) {
       const key = periodKey(a.start_date_local, g);
-      const id = shownIds.includes(a.gear_id!) ? a.gear_id! : "other";
-      if (!sums.has(id)) sums.set(id, new Map());
-      const perPeriod = sums.get(id)!;
+      if (!sums.has(a.gear_id!)) sums.set(a.gear_id!, new Map());
+      const perPeriod = sums.get(a.gear_id!)!;
       perPeriod.set(key, (perPeriod.get(key) ?? 0) + a.distance);
     }
 
-    const datasets: TimelineDataset[] = shownIds.map((id, i) => ({
+    const datasets: TimelineDataset[] = rankedGearIds.map((id, i) => ({
       label: gearNameById.get(id) ?? id,
       color: categoricalColor(i),
+      dash: categoricalDash(i),
       data: allPeriods.map((p) => distanceValue(sums.get(id)?.get(p) ?? 0, units)),
     }));
-    if (hasOther) {
-      datasets.push({
-        label: "Other gear",
-        color: OTHER_COLOR,
-        data: allPeriods.map((p) => distanceValue(sums.get("other")?.get(p) ?? 0, units)),
-      });
-    }
 
     return { labels: allPeriods.map((p) => periodLabel(p, g)), datasets };
   }
@@ -120,6 +111,7 @@
           label: d.label,
           data: d.data,
           borderColor: d.color,
+          borderDash: d.dash,
           borderWidth: 2,
           pointRadius: 3,
           pointHoverRadius: 5,
@@ -140,6 +132,10 @@
             labels: { boxWidth: 16, boxHeight: 2, color: "#52514e" },
           },
           tooltip: {
+            // Only list gear actually used in the hovered period - a line
+            // sitting at zero there is still drawn (so the fall-off itself
+            // is visible), it just doesn't clutter the popup.
+            filter: (item) => (item.parsed.y as number) > 0,
             callbacks: {
               label: (ctx) => `${ctx.dataset.label}: ${(ctx.parsed.y as number).toFixed(1)} ${distanceUnitLabel(units)}`,
             },

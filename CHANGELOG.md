@@ -3,6 +3,141 @@
 Log of changes made to this project, including the prompts that drove them.
 Newest entries first.
 
+## 2026-07-24 — Staged progress text during sync
+
+**Prompt:**
+
+> Is it possible to show some sort of progress while syncing? Just text.
+
+**Changes:**
+
+- Considered real server-driven progress first (streaming the sync
+  response with per-step updates), but tested it against this app's dev
+  server and found it unsafe: a cookie set after a streamed `Response` is
+  returned never reaches the client (confirmed with a throwaway test
+  route — `set-cookie` came back `null`), which would have silently
+  broken the `api_usage` daily-budget cookie write in `sync.ts`. The dev
+  server also truncated/mangled the streamed body in that test. Given
+  `/api/strava/sync` stays a single request/response, real live progress
+  isn't available without a larger, riskier refactor.
+- Went with client-side staged text instead: `GearDashboard.svelte` now
+  advances through a fixed sequence ("Connecting to Strava…" → "Fetching
+  your gear…" → "Fetching your activity history…" → "Still working — this
+  can take a bit for a lot of history…") on a 1.5s timer while the one
+  sync request is in flight, holding on the last message if it runs long.
+  Shown in the existing full-screen syncing overlay in place of the old
+  static "Syncing with Strava…" text.
+- Verified with `npx astro check` (0 errors), `npm run build`, and a
+  real-browser Playwright test that intercepted the sync request with a
+  controlled 6s delay and confirmed all four stage transitions render at
+  the right cadence and the last one holds until the request resolves.
+
+## 2026-07-24 — Fix misleading "no calls remaining" message
+
+**Prompt:**
+
+> The calls remaining should be stored in its own cookie. It's not showing
+> correctly.
+
+**Changes:**
+
+- Confirmed the daily-budget cookie mechanism itself (`api_usage`,
+  `src/lib/apiUsage.ts`) was already correct end-to-end: verified with a
+  temporary test route + Playwright that `recordCalls` writes are read
+  back accurately by `getUsage` across requests, and the dashboard's "API
+  calls today: X/Y" line always matched the cookie's true value.
+- Found the actual bug: `GearDashboard.svelte`'s "no data yet" placeholder
+  unconditionally read "No data yet, and no Strava API calls remaining
+  today. Check back tomorrow to sync." — even when calls were still
+  available (e.g. a failed sync with 85 calls remaining still displayed
+  this exhausted-budget message, which is what looked like the usage
+  count "not showing correctly").
+- Made the message conditional on the actual `remaining` state: only
+  claims calls are exhausted when `remaining <= 0`; otherwise shows a
+  plain "No data yet."
+- Verified with `npx astro check` (0 errors), `npm run build`, and a
+  real-browser Playwright test seeding `remaining=85` (showed the plain
+  message) and `remaining=0` (showed the exhausted message) via seeded
+  `strava_session`/`api_usage` cookies.
+
+## 2026-07-24 — No more "Other gear": cycle colors with dash patterns
+
+**Prompt:**
+
+> Either add more or reuse the colors so we don't have to condense them
+> into "other gear"
+
+**Changes:**
+
+- Checked "add more colors" against the dataviz skill's validator before
+  ruling it out: even the existing 8-hue palette **fails**
+  `validate_palette.js --pairs all` (worst-case CVD ΔE drops to 3.2,
+  normal-vision ΔE to 7.1 — both well under the floors) - the relevant
+  test here, since on a multi-line chart any two lines can be
+  simultaneously visible/crossing, not just neighbors in a list. A 9th
+  hue was never going to hold up; this wasn't a judgment call to skip
+  validating.
+- Implemented **composite encoding** instead (color + line-dash pattern),
+  which the dataviz skill's own anti-patterns list names as the
+  alternative to folding into "Other": `categoricalColor()` in
+  `src/lib/chartColors.ts` now cycles the same 8 hues via modulo instead
+  of falling back to a gray "Other" color, and a new `categoricalDash()`
+  gives each successive lap around the palette (items 9-16, 17-24, …) a
+  different Chart.js `borderDash` pattern (solid → dashed → dotted →
+  dash-dot). The first 8 series are pixel-identical to before (still
+  solid) - only gear past #8 changed.
+- `GearTimeline.svelte`: removed the `shownIds`/`hasOther`/"Other gear"
+  logic entirely - every gear now gets a named line, full stop.
+- Gear card badges (`GearDashboard.svelte`) still use `gearColorMap()`,
+  which only carries the *color* component - past 8 gear items two badges
+  can share a background color (no dash equivalent fits on a small pill),
+  but the name beside each badge still disambiguates them, and their chart
+  lines stay distinct via dash.
+- Verified in a real browser: seeded 10 ranked gear items and confirmed
+  programmatically that no "Other gear" label appears anywhere, all 10
+  show up as named lines/cards, exactly 8 unique badge colors are used
+  (colors 1-2 correctly reused for items 9-10), and item 8's badge color
+  exactly equals item 0's (same palette slot, as expected). Screenshotted
+  the chart legend and visually confirmed items 9-10 render with a dashed
+  swatch versus the solid swatches on items 1-8.
+
+## 2026-07-24 — Gear tag colors match the chart; quiet tooltips
+
+**Prompt:**
+
+> Match the background color of each gear tag with that in the chart.
+> Hide gear in the chart popup that has no usage for that time period.
+
+**Changes:**
+
+- Extracted the chart's rank-by-lifetime-distance color assignment out of
+  `GearTimeline.svelte` into `src/lib/chartColors.ts`
+  (`rankGearByDistance`, `gearColorMap`) so it's one shared source of
+  truth instead of logic that could drift between two places. Gear with
+  zero activities at all (nothing to rank it by) falls back to
+  `OTHER_COLOR` gray - the same color the chart would use for it if it
+  ever crossed into "fold past 8" territory.
+- The "Bike"/"Shoes" badge on each gear card now uses that gear's actual
+  chart color as its background instead of a flat gray, via a new
+  `readableTextColor()` helper that picks black or white text by computing
+  actual WCAG contrast against the badge color (not assumed) - several
+  palette colors (yellow, aqua, magenta) read better with dark text than
+  the white you'd expect from a typical colored-badge convention.
+- `GearTimeline`'s tooltip now sets `plugins.tooltip.filter` to drop any
+  series with `0` distance in the hovered period - a gear still shows its
+  line falling to zero (that's the point), it just stops cluttering the
+  popup once it's not part of the story for that period.
+- Verified in a real browser, not just read the code: seeded 4 gear items
+  (including one with zero activities, to exercise the gray fallback) and
+  confirmed via `getComputedStyle` that all four badge colors exactly
+  match their expected palette hex values (converted to the `rgb()` the
+  browser reports) - including the zero-activity bike correctly landing on
+  gray. Screenshotted the dashboard to confirm the legend and badges are
+  visibly identical, and screenshotted a hover on an early period to
+  confirm the tooltip lists only the two gear actually used that year,
+  omitting the one that had zero distance then despite its line already
+  being drawn on the chart.
+
 ## 2026-07-24 — Gear usage timeline chart
 
 **Prompt:**

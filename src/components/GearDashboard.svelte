@@ -5,6 +5,7 @@
   import { getSnapshot, putSnapshot } from "../lib/db";
   import { formatDistance } from "../lib/units";
   import { stravaGearUrl } from "../lib/stravaLinks";
+  import { gearColorMap, readableTextColor, OTHER_COLOR } from "../lib/chartColors";
   import RideList from "./RideList.svelte";
   import GearTimeline from "./GearTimeline.svelte";
 
@@ -31,9 +32,32 @@
   let remaining = $state(initialUsageRemaining);
   const used = $derived(usageLimit - remaining);
 
+  // /api/strava/sync is a single request/response with no progress
+  // feedback from the server - it can't stream real per-step updates
+  // without breaking the api_usage cookie write (Set-Cookie calls made
+  // after a streamed Response is returned don't reach the client -
+  // confirmed by testing against this app's dev server). So this just
+  // advances through plausible stage text on a timer while the one
+  // request is in flight, and stalls on the last stage if it runs long.
+  const SYNC_STAGES = [
+    "Connecting to Strava…",
+    "Fetching your gear…",
+    "Fetching your activity history…",
+    "Still working — this can take a bit for a lot of history…",
+  ];
+  let syncStage = $state(SYNC_STAGES[0]);
+
   async function runSync() {
     syncing = true;
     syncError = "";
+    let stageIndex = 0;
+    syncStage = SYNC_STAGES[stageIndex];
+    const stageTimer = setInterval(() => {
+      if (stageIndex < SYNC_STAGES.length - 1) {
+        stageIndex++;
+        syncStage = SYNC_STAGES[stageIndex];
+      }
+    }, 2500);
     try {
       const res = await fetch("/api/strava/sync", { method: "POST" });
       if (res.status === 401) {
@@ -61,6 +85,7 @@
       console.error("Sync request failed:", err);
       syncError = "Sync failed. Please try again.";
     } finally {
+      clearInterval(stageTimer);
       syncing = false;
     }
   }
@@ -88,6 +113,9 @@
   const gearNames = $derived(
     Object.fromEntries(allGear.map((g) => [g.id, g.name])),
   );
+  // Same rank-based color assignment GearTimeline uses for its lines, so a
+  // gear's badge color always matches its line color.
+  const gearColors = $derived(snapshot ? gearColorMap(snapshot.activities) : new Map());
   const estimatedSyncCalls = $derived(
     snapshot
       ? 1 +
@@ -105,18 +133,14 @@
     <div class="spinner-border text-light" role="status">
       <span class="visually-hidden">Syncing…</span>
     </div>
-    <div class="text-light">Syncing with Strava…</div>
+    <div class="text-light">{syncStage}</div>
   </div>
 {/if}
 
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
   <h1 class="h3 mb-0">Hi, {firstname}</h1>
   <div class="text-end">
-   {#if snapshot}
-   <span class="small text-muted mt-1">
-        Last synced {new Date(snapshot.fetchedAt).toLocaleString()}
-   </span>
-        {/if}
+
     {#if remaining > 0}
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick={runSync}>
         Refresh from Strava{estimatedSyncCalls ? ` (~${estimatedSyncCalls} calls)` : ""}
@@ -127,7 +151,9 @@
       </button>
     {/if}
     <div class="small text-muted mt-1">
-        Strava API calls today: {used}/{usageLimit} 
+   {#if snapshot}
+        Last synced {new Date(snapshot.fetchedAt).toLocaleString()}
+        • {/if} API calls today: {used}/{usageLimit} 
       </div>
   </div>
 </div>
@@ -138,15 +164,19 @@
 
 {#if !snapshot}
   <p class="text-muted">
-    {checkedBrowserCache
-      ? "No data yet, and no Strava API calls remaining today. Check back tomorrow to sync."
-      : "Loading…"}
+    {#if !checkedBrowserCache}
+      Loading…
+    {:else if remaining <= 0}
+      No data yet, and no Strava API calls remaining today. Check back tomorrow to sync.
+    {:else}
+      No data yet.
+    {/if}
   </p>
 {:else}
   <div>
     <GearTimeline activities={snapshot.activities} gear={allGear} {units} />
 
-    <h2 class="h5 mb-2">Gear</h2>
+    <h2 class="h5 mb-2">Current Gear</h2>
 
     {#if allGear.length === 0}
       <p class="text-muted">No gear on this Strava account.</p>
@@ -162,7 +192,9 @@
             >
               <div class="card-body">
                 <h3 class="h6 card-title mb-1">
-                  <span class="badge text-bg-secondary mb-1"
+                  <span
+                    class="badge mb-1"
+                    style={`background-color: ${gearColors.get(gear.id) ?? OTHER_COLOR}; color: ${readableTextColor(gearColors.get(gear.id) ?? OTHER_COLOR)};`}
                     >{gear.id.startsWith("b") ? "Bike" : "Shoes"}</span
                   >
                   {gear.name}
