@@ -3,6 +3,53 @@
 Log of changes made to this project, including the prompts that drove them.
 Newest entries first.
 
+## 2026-07-24 — Gear usage timeline chart
+
+**Prompt:**
+
+> Coool. It's live! Since we have all the data let's add a timeline (line
+> chart with Chart.js) to the top of the dashboard with a different color
+> line for each gear. The x-axis are years (or months?) and the y-axis
+> rises and falls with gear usage.
+
+**Changes:**
+
+- Added `GearTimeline.svelte`: a Chart.js line chart, one line per gear,
+  plotting **distance per period** (not cumulative) so a line genuinely
+  rises and falls with usage rather than only ever climbing. Placed at the
+  top of the dashboard content, right below "Last synced".
+- Resolved the "years (or months?)" question by not picking one - added a
+  Year/Month toggle (defaults to Year, since this account's ~15-year
+  history makes monthly the noisier default view).
+- Gaps are filled with zero across a continuous period range, so a bike
+  that was retired shows its line actually dropping to zero rather than
+  the line just stopping - this is what makes a gear swap visible as a
+  crossover instead of two disconnected fragments.
+- Colors are assigned by each gear's all-time distance rank (not
+  alphabetical, not sync order) from a new validated categorical palette
+  (`src/lib/chartColors.ts`) - loaded and followed the `dataviz` skill for
+  this: ran `scripts/validate_palette.js`, which passed the 8-hue default
+  order for a light surface (worst adjacent CVD ΔE 9.1, worst adjacent
+  normal-vision ΔE 19.6, both clear of the 8/15 floors). Past 8 gear items
+  the extras fold into one "Other gear" line rather than generating a 9th
+  hue, per the skill's anti-patterns list. Line/marker specs (2px lines,
+  ≥8px point markers, hairline solid gridlines, legend always present for
+  ≥2 series, combined tooltip via Chart.js `interaction: index`) also
+  follow that skill's mark/interaction specs rather than Chart.js
+  defaults.
+- Added `distanceValue()`/`distanceUnitLabel()` to `src/lib/units.ts` (a
+  small refactor - `formatDistance()` now calls `distanceValue()`
+  internally) since the chart needs raw numbers to plot, not the
+  formatted "12.3 km" strings the rest of the app uses.
+- Verified with `npx astro check` (0 errors), `npm run build`, and a real
+  browser: seeded 6 years of realistic activity data across a bike swap
+  (Old Gravel Bike → New Road Bike partway through) plus year-round shoe
+  use, with a seasonal (summer-heavy) distribution. Screenshotted both
+  Year view (the bike swap reads as a clean crossover around 2022–2023)
+  and Month view (the same swap plus the seasonal peaks/troughs within
+  each year are both visible) - confirmed the chart tells the actual
+  story the data has, not just that it renders without errors.
+
 ## 2026-07-24 — Cookie-based usage tracking; ready for Vercel
 
 **Prompt:**

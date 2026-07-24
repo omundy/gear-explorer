@@ -124,6 +124,14 @@ Svelte component, never from `.astro` frontmatter or anything that runs
 during SSR. Keep new interactive UI in Svelte islands rather than adding
 client-side script to `.astro` files.
 
+**Charting**: `GearTimeline.svelte` (Chart.js) uses the validated categorical
+palette in `src/lib/chartColors.ts` — fixed hue order assigned by each
+gear's lifetime-distance rank, never re-assigned or cycled past 8 slots
+(extras fold into one "Other gear" line). If you add another chart, pull
+colors from that module rather than picking new hex values by eye; it was
+validated with the dataviz skill's colorblind-safety checker. Light-mode
+only, matching the rest of the app.
+
 **API routes** (`src/pages/api/**`) are the only things allowed to mutate
 server-side state (session cookie, usage counts) or call Strava. Svelte
 islands call these via `fetch`, never the `src/lib` helpers directly

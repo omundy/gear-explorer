@@ -20,6 +20,10 @@ Gear Explorer is a prototype that:
    source of truth and the only place edits happen. This also means the
    app works for runners and any other gear-logging sport, not just
    cycling.
+4. Charts distance-per-period against time as one line per gear (year or
+   month, toggleable) - the "which bike was I actually riding, and when did
+   I switch" story that's otherwise buried across hundreds of individual
+   activity rows.
 
 ## Why Astro + Svelte islands
 
@@ -84,7 +88,11 @@ src/
                            fetch, not navigation) when there's nothing
                            there yet or the user clicks Refresh, writes the
                            result back to IndexedDB, and renders the gear
-                           grid + RideList from whatever it currently has
+                           grid + timeline chart + RideList from whatever
+                           it currently has
+    GearTimeline.svelte   Chart.js line chart, one line per gear, distance
+                           per year or month (toggle) - all client-side,
+                           nested inside GearDashboard like RideList
     RideList.svelte     Sortable/filterable/paginated activity table, all
                          client-side (plain Svelte component, nested inside
                          GearDashboard - operates entirely on the activity
@@ -122,6 +130,12 @@ in cookies read/written per-request (session, daily call budget).
   resettable by clearing cookies or switching browsers, and it doesn't
   follow the same person across devices - both fine for a personal-use
   governor, not fine if this ever needed to be a real enforced limit.
+- **The usage timeline caps at 8 gear lines** (a validated categorical
+  palette's limit for staying colorblind-distinguishable - see
+  `src/lib/chartColors.ts`); anyone with more gear than that sees their top
+  8 by lifetime distance as named lines and everything else folded into a
+  single "Other gear" line, rather than a 9th generated hue. The chart is
+  light-mode only, matching the rest of the app (no dark mode anywhere yet).
 
 ## Setup
 

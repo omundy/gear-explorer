@@ -6,6 +6,7 @@
   import { formatDistance } from "../lib/units";
   import { stravaGearUrl } from "../lib/stravaLinks";
   import RideList from "./RideList.svelte";
+  import GearTimeline from "./GearTimeline.svelte";
 
   interface Props {
     athleteId: number;
@@ -111,6 +112,11 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
   <h1 class="h3 mb-0">Hi, {firstname}</h1>
   <div class="text-end">
+   {#if snapshot}
+   <span class="small text-muted mt-1">
+        Last synced {new Date(snapshot.fetchedAt).toLocaleString()}
+   </span>
+        {/if}
     {#if remaining > 0}
       <button type="button" class="btn btn-outline-secondary btn-sm" onclick={runSync}>
         Refresh from Strava{estimatedSyncCalls ? ` (~${estimatedSyncCalls} calls)` : ""}
@@ -120,7 +126,9 @@
         Refresh from Strava (0 calls left today)
       </button>
     {/if}
-    <div class="small text-muted mt-1">Strava API calls today: {used} / {usageLimit}</div>
+    <div class="small text-muted mt-1">
+        Strava API calls today: {used}/{usageLimit} 
+      </div>
   </div>
 </div>
 
@@ -136,9 +144,7 @@
   </p>
 {:else}
   <div>
-    <div class="small text-muted mb-3">
-      Last synced {new Date(snapshot.fetchedAt).toLocaleString()}
-    </div>
+    <GearTimeline activities={snapshot.activities} gear={allGear} {units} />
 
     <h2 class="h5 mb-2">Gear</h2>
 
