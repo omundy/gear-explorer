@@ -16,13 +16,14 @@
   let page = $state(1);
   let perPage = $state(25);
 
-  type SortKey = 'date' | 'sport' | 'name' | 'gear' | 'distance' | 'elevation' | 'time';
+  type SortKey = 'date' | 'sport' | 'name' | 'edit' | 'gear' | 'distance' | 'elevation' | 'time';
   type SortDir = 'asc' | 'desc';
 
   const columns: [SortKey, string][] = [
     ['date', 'Date'],
     ['sport', 'Sport'],
     ['name', 'Activity'],
+    ['edit', 'Edit'],
     ['gear', 'Gear'],
     ['distance', 'Distance'],
     ['elevation', 'Elevation'],
@@ -34,6 +35,7 @@
     date: 'desc',
     sport: 'asc',
     name: 'asc',
+    edit: 'asc',
     gear: 'asc',
     distance: 'desc',
     elevation: 'desc',
@@ -48,6 +50,8 @@
         return activity.sport_type;
       case 'name':
         return activity.name.toLowerCase();
+      case 'edit':
+        return activity.sport_type;
       case 'gear':
         return activity.gear_id ? (gearNames[activity.gear_id] ?? activity.gear_id).toLowerCase() : '';
       case 'distance':
@@ -184,6 +188,11 @@
               <td>
                 <a href={`https://www.strava.com/activities/${activity.id}`} target="_blank" rel="noreferrer">
                   {activity.name}
+                </a>
+              </td>
+              <td>
+                <a href={`https://www.strava.com/activities/${activity.id}/edit`} target="_blank" rel="noreferrer">
+                  edit
                 </a>
               </td>
               <td>
